@@ -1,0 +1,942 @@
+---
+title: | 
+  | Projet 6 : Radix sort
+  | ![](Images/logo_UEVE.png){width=1.7in}
+  |  M2 Data Science Algorithmique 
+author:  "Adèle BERGER, Hajar LAMTAAI, Loïc XU"
+date: "vendredi 11 avril 2025"
+header-includes:
+  - \usepackage[french]{babel}
+output:
+  pdf_document:
+    keep_tex: yes
+    toc: true
+    number_sections: true  
+urlcolor: blue
+---
+
+\noindent\hrulefill \
+
+# Description du problème et objectif
+
+Dans ce projet, nous comparons deux algorithmes de tri en termes de performance : le Radix Sort, un algorithme de tri non-comparatif, et un algorithme classique de tri par comparaison tel que le Merge Sort ou le Heat Sort, qui ont une complexité en $O(n \log n)$. Le Radix Sort se distingue des autres algorithmes de tri en procédant par tri des chiffres (digit by digit), offrant ainsi une approche non-comparative, avec une complexité théorique de $O(n)$ dans certains cas, sous certaines hypothèses sur les données.
+
+Il est intéressant de noter que la performance de ces deux algorithmes dépend de plusieurs facteurs, notamment la taille des données à trier. En effet, le Radix Sort peut être plus rapide pour des jeux de données de taille modérée ou lorsque les données suivent certaines distributions. En revanche, les algorithmes de tri par comparaison comme le Merge Sort ou le Heat Sort tendent à offrir de meilleures performances sur des ensembles de données de grande taille ou dans des situations générales.
+
+Le principal objectif de ce projet est d’évaluer dans quelles conditions l'un de ces algorithmes est plus efficace que l'autre. Nous chercherons à mettre en évidence la transition entre un algorithme plus rapide à petite échelle et un autre plus performant à grande échelle, en fonction de la taille des données.
+
+À travers cette analyse, nous viserons à comprendre les circonstances dans lesquelles il est pertinent de choisir l'un ou l'autre de ces algorithmes, en prenant en compte à la fois leur complexité théorique et leur comportement pratique sur des jeux de données simulés.
+
+# Un premier exemple
+
+Le package se télécharge ainsi :
+
+```{r, eval=FALSE}
+devtools::install_github("loic-xu/radix_sort")
+```
+
+et ses fonctions sont rendues disponibles sur Rstudio ainsi :
+
+```{r}
+library(RadixSort)
+```
+
+On simule un petit exemple d'un vecteur `v` de taille `100`
+
+```{r}
+n <- 100
+v <- sample(n)
+```
+
+On teste les 6 algorithmes implémentés avec des noms explicites :
+
+-   `merge_sort`
+-   `heap_sort`
+-   `radix_sort`
+-   `merge_sort_Rcpp`
+-   `heap_sort_Rcpp`
+-   `radix_sort_Rcpp`
+
+Cela donne :
+
+```{r}
+cat("Vecteur initial :\n")
+print(v)
+cat("\n")
+
+cat("Résultat merge_sort:\n")
+print(merge_sort(v))
+cat("\n")
+
+cat("Résultat heap_sort:\n")
+print(heap_sort(v))
+cat("\n")
+
+cat("Résultat radix_sort:\n")
+print(radix_sort(v))
+cat("\n")
+
+cat("Résultat merge_sort_Rcpp:\n")
+print(merge_sort_Rcpp(v))
+cat("\n")
+
+cat("Résultat heap_sort_Rcpp:\n")
+print(heap_sort_Rcpp(v))
+cat("\n")
+
+cat("Résultat radix_sort_Rcpp:\n")
+print(radix_sort_Rcpp(v))
+cat("\n")
+```
+
+# Difficulté algorithmique
+
+## Problème combinatoire
+
+Le problème du tri est un problème combinatoire fondamental dans le domaine de l'algorithmique. Le but est d'organiser un ensemble de données dans un ordre donné, généralement croissant ou décroissant. Lorsque l'on utilise des algorithmes de tri par comparaison, chaque élément du tableau doit être comparé à d'autres éléments pour déterminer son emplacement relatif dans l'ordre. Ce processus de comparaison constitue un problème combinatoire, car le nombre de permutations possibles des éléments augmente rapidement avec la taille du tableau, créant ainsi une complexité de O(n log n) dans les meilleurs cas pour des algorithmes comme Heat Sort ou Merge Sort.
+
+## Solution naïve
+
+La solution naïve dans ce contexte consiste à utiliser des algorithmes de tri dont la complexité est O(n log n). Deux algorithmes populaires dans cette catégorie sont :
+
+-   Merge Sort : Un algorithme de tri par merge qui divise le tableau en deux parties, trie chacune d'elles, puis mergene les sous-tableaux triés. Il est stable et garanti d'avoir une complexité de O(n log n) dans tous les cas.
+
+-   Heap Sort : Un algorithme de tri basé sur une structure de données appelée "tas" (heap). Il permet de trier les éléments en O(n log n) dans tous les cas, mais il n'est pas stable (il ne conserve pas l'ordre relatif des éléments égaux).
+
+Ces deux algorithmes sont des choix naturels pour un tri efficace basé sur des comparaisons. Cependant, la question de savoir lequel est le plus efficace dépend de plusieurs facteurs, notamment la distribution des données et les caractéristiques spécifiques du problème à résoudre.
+
+## Limites avec R et C++
+
+Dans cette section, nous comparons les performances de différentes implémentations des algorithmes de tri en R et en C++. L'objectif est de quantifier les différences de performance entre les versions R et Rcpp (C++), en particulier pour les algorithmes Merge Sort et Heap Sort.
+
+Pour cela, nous utilisons deux fonctions :
+
+- `one.simu.time` qui mesure le temps d'exécution d'un algorithme spécifique.
+
+- `one.simu`, qui exécute l'algorithme et est utilisé pour les simulations avec `microbenchmark`.
+
+Voici les fonctions définies pour mesurer et exécuter les algorithmes :
+
+
+```{r}
+one.simu.time <- function(n, v, func = "merge_sort")
+{
+
+  if(func == "merge_sort"){t <- system.time(merge_sort(v))[[3]]}
+  if(func == "heap_sort"){t <- system.time(heap_sort(v))[[3]]} 
+  if(func == "radix_sort"){t <- system.time(heap_sort(v))[[3]]} #On défini aussi la fonction pour la suite
+  if(func == "merge_sort_Rcpp"){t <- system.time(merge_sort_Rcpp(v))[[3]]}
+  if(func == "heap_sort_Rcpp"){t <- system.time(heap_sort_Rcpp(v))[[3]]}
+  if(func == "radix_sort_Rcpp"){t <- system.time(heap_sort_Rcpp(v))[[3]]} #On défini aussi la fonction pour la suite
+
+
+  return(t)
+}
+
+one.simu <- function(n, v, func = "merge_sort")
+{
+  if(func == "merge_sort"){merge_sort(v)}
+  if(func == "heap_sort"){heap_sort(v)} 
+  if(func == "heap_sort"){heap_sort(v)} 
+  if(func == "merge_sort_Rcpp"){merge_sort_Rcpp(v)}
+  if(func == "heap_sort_Rcpp"){heap_sort_Rcpp(v)}
+  if(func == "heap_sort_Rcpp"){heap_sort_Rcpp(v)}
+
+}
+```
+
+## Un essai
+
+Sur un exemple avec n = 10 000, on obtient les résultats suivants:
+
+```{r}
+n <- 10000
+v <- sample(n)
+one.simu.time(n, v, func = "merge_sort")
+one.simu.time(n, v, func = "heap_sort")
+one.simu.time(n, v, func = "merge_sort_Rcpp")
+one.simu.time(n, v, func = "heap_sort_Rcpp")
+```
+
+## Simulations avec répétitions
+
+On reproduit ces comparaisons de manière plus robuste :
+
+```{r }
+nbSimus <- 10
+
+time1 <- rep(0, nbSimus); time2 <- rep(0, nbSimus);
+time3 <- rep(0, nbSimus); time4 <- rep(0, nbSimus);
+time5 <- rep(0, nbSimus); time6 <- rep(0, nbSimus);
+
+
+for(i in 1:nbSimus){time1[i] <- one.simu.time(n, v, func = "merge_sort")}
+for(i in 1:nbSimus){time2[i] <- one.simu.time(n, v, func = "merge_sort_Rcpp")}
+for(i in 1:nbSimus){time5[i] <- one.simu.time(n, v, func = "heap_sort")}
+for(i in 1:nbSimus){time6[i] <- one.simu.time(n, v, func = "heap_sort_Rcpp")}
+```
+
+Gain C++ versus R
+
+```{r}
+cat("Ratio moyen Merge Sort (R) / Merge Sort (Rcpp) :\n")
+cat(mean(time1) / mean(time2), "\n\n")
+
+cat("Ratio moyen Heap Sort (R) / Heap Sort (Rcpp) :\n")
+cat(mean(time5) / mean(time6), "\n\n")
+```
+
+Gain fusion versus tas
+
+```{r}
+cat("Ratio moyen Heap Sort (R) / Merge Sort (R) :\n")
+cat(mean(time5) / mean(time1), "\n\n")
+
+cat("Ratio moyen Heap Sort (Rcpp) / Merge Sort (Rcpp) :\n")
+cat(mean(time6) / mean(time2), "\n\n")
+```
+
+On recommence avec `n = 20000`:
+
+```{r second simu}
+n <- 20000
+nbSimus <- 10
+time1 <- rep(0, nbSimus); time2 <- rep(0, nbSimus);
+time5 <- rep(0, nbSimus); time6 <- rep(0, nbSimus);
+v <- sample(n)
+
+
+for(i in 1:nbSimus){time1[i] <- one.simu.time(n, v, func = "merge_sort")}
+for(i in 1:nbSimus){time2[i] <- one.simu.time(n, v, func = "merge_sort_Rcpp")}
+for(i in 1:nbSimus){time5[i] <- one.simu.time(n, v, func = "heap_sort")}
+for(i in 1:nbSimus){time6[i] <- one.simu.time(n, v, func = "heap_sort_Rcpp")}
+
+
+cat("Ratio moyen Merge Sort (R) / Merge Sort (Rcpp) :\n")
+cat(mean(time1) / mean(time2), "\n\n")
+
+cat("Ratio moyen Heap Sort (R) / Heap Sort (Rcpp) :\n")
+cat(mean(time5) / mean(time6), "\n\n")
+```
+
+
+On peut aussi visualiser ces résultats :
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Préparer les données en format long pour ggplot2
+df_merge <- data.frame(
+  Implémentation = rep(c("merge_sort (R)", "merge_sort_Rcpp"), each = nbSimus),
+  Temps = c(time1, time2)
+)
+
+df_heap <- data.frame(
+  Implémentation = rep(c("heap_sort (R)", "heap_sort_Rcpp"), each = nbSimus),
+  Temps = c(time5, time6)
+)
+```
+
+
+```{r}
+# Graphe 1 : Merge Sort
+ggplot(df_merge, aes(x = Implémentation, y = Temps, fill = Implémentation)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Temps d'exécution : Merge Sort (R vs Rcpp)",
+       y = "Temps (en secondes)", x = "") +
+  scale_fill_manual(values = c("#FFA07A", "#20B2AA")) +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+# Graphe 2 : Heap Sort
+ggplot(df_heap, aes(x = Implémentation, y = Temps, fill = Implémentation)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Temps d'exécution : Heap Sort (R vs Rcpp)",
+       y = "Temps (en secondes)", x = "") +
+  scale_fill_manual(values = c("#9370DB", "#3CB371")) +
+  theme(legend.position = "none")
+
+
+```
+
+
+```{r}
+df_avg <- data.frame(
+  Algo = c("Merge R", "Merge Rcpp", "Heap R", "Heap Rcpp"),
+  Temps = c(mean(time1), mean(time2), mean(time5), mean(time6))
+)
+
+ggplot(df_avg, aes(x = Algo, y = Temps, group = 1)) +
+  geom_line(color = "steelblue", size = 1.2) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  labs(title = "Temps moyen d'exécution (R vs Rcpp)",
+       y = "Temps (secondes)", x = "Algorithme")
+
+
+```
+
+
+
+
+
+**Conclusion:**
+
+Les tests réalisés montrent des différences de performance notables entre les algorithmes en **R** et en **Rcpp**. 
+
+- **Merge Sort** : La version en Rcpp est environ **26 fois plus rapide** que celle en R pour n = 10,000 et 20,000, ce qui met en évidence un gain de performance significatif grâce à l'optimisation en C++.
+
+- **Heap Sort** : L'écart est similaire, avec la version en Rcpp étant environ **8 à 11 fois plus rapide**.
+
+En comparant les algorithmes en **R**, on remarque que :
+
+- **Merge Sort** est aussi plus rapide que **Heap Sort**.
+
+
+## Simulations avec `microbenchmark`
+
+Nous utilisons les packages `microbenchmark` et `ggplot2` pour exécuter les simulations et afficher les résultats (sous forme de diagrammes en violon). Nous comparons `merge_sort_Rcpp` avec `heap_sort_Rcpp` pour des tailles de données différentes.
+
+
+```{r}
+library(microbenchmark)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+```
+
+```{r}
+benchmark_sorting <- function(n, times = 70)
+{
+  v <- sample(n)
+  microbenchmark(
+    merge_sort = one.simu(n, v, func = "merge_sort_Rcpp"),
+    heap_sort = one.simu(n, v, func = "heap_sort_Rcpp"),
+    times = times,
+    control = list(gc = FALSE)
+  )
+}
+
+n_values <- c(500, 5000, 50000)
+results <- lapply(n_values, benchmark_sorting)
+
+
+df_results <- do.call(rbind, Map(cbind, results, n = n_values))
+
+
+ggplot(df_results, aes(x = expr, y = time / 1e6, fill = expr)) +
+  geom_violin(alpha = 0.7) +
+  facet_wrap(~n, scales = "free") +
+  labs(title = "Sorting Algorithm in Rcpp Benchmark",
+       x = "Sorting Algorithm",
+       y = "Execution Time (ms)",
+       fill = "Algorithm") +
+  theme_minimal()
+```
+
+
+
+On peut aussi visualiser ces résultats sous forme de tableau :
+
+```{r}
+df_results %>%
+  group_by(n, expr) %>%
+  summarise(
+    min_time = min(time) / 1e6,   # Convert nanoseconds to milliseconds
+    q1_time = quantile(time, 0.25) / 1e6,
+    median_time = median(time) / 1e6,
+    mean_time = mean(time) / 1e6,
+    q3_time = quantile(time, 0.75) / 1e6,
+    max_time = max(time) / 1e6,
+    .groups = "drop"
+  )
+```
+
+
+
+
+
+```{r}
+benchmark_sorting <- function(n, times = 50) {
+  v <- sample(n)
+  result <- microbenchmark(
+    merge_sort = one.simu(n, v, func = "merge_sort_Rcpp"),
+    heap_sort = one.simu(n, v, func = "heap_sort_Rcpp"),
+    times = times,
+    control = list(gc = FALSE)
+  )
+  
+  median_result <- aggregate(time ~ expr, data = result, FUN = mean)
+  return(median_result)
+}
+
+n_values <- seq(100, 50100, by = 5000)  # Tester de 100 à 50000 avec un pas de 5000
+
+results <- lapply(n_values, benchmark_sorting)
+
+df_results <- do.call(rbind, Map(function(x, n) cbind(x, n = n), results, n_values))
+
+ggplot(df_results, aes(x = n, y = time / 1e6, color = expr, group = expr)) + 
+  geom_line(size = 1) + 
+  geom_point() + 
+  labs(title = "Benchmark des Algorithmes de Tri en Rcpp", 
+       x = "Taille de l'entrée (n)", 
+       y = "Temps d'Exécution (ms)", 
+       color = "Algorithme") + 
+  theme_minimal() + 
+  scale_x_continuous(breaks = n_values)
+
+```
+
+
+
+
+**Conclusion**
+
+Pour conclure cette première partie sur nos algorithmes "naïfs", nous avons observé les résultats suivants :
+
+- **Les algorithmes C++ sont plus rapides que les algorithmes en R**, ce qui est attendu compte tenu de la nature plus performante du langage C++ pour les tâches computationnelles. Pour des tailles de données de 10 000 et 20 000, en moyenne, les algorithmes en C++ sont **plus de 14 fois plus rapides** que leurs équivalents en R.
+
+- **Comparaison entre les algorithmes C++** : En analysant les résultats des algorithmes naïfs en C++, nous avons constaté que **le tri par tas (heap sort)** est l'algorithme le moins performant parmi ceux testés.
+
+
+Dans la suite de notre étude, nous ne conserverons que **le tri fusion** comme algorithme de comparaison, étant donné sa supériorité en termes de performance.
+
+Nous allons maintenant passer à l'étude de notre **solution améliorée** : le **Radix Sort**, qui pourrait potentiellement offrir une amélioration supplémentaire de la performance sur de grandes tailles de données.
+
+
+
+
+# Solution améliorée moderne : Radix sort
+
+## Présentation de la stratégie algorithmique
+
+Le **Radix Sort** est un algorithme de tri non comparatif qui fonctionne en triant les éléments chiffre par chiffre, du moins significatif au plus significatif (ou inversement, selon l'implémentation). Contrairement aux algorithmes de tri classiques comme le **Mergesort**, le **mergesort**, ou le **heapsort**, qui comparent les éléments entre eux, le **Radix Sort** fonctionne par distribution des éléments en fonction de leurs chiffres individuels, ce qui le rend particulièrement efficace dans certains cas.
+
+### Principe de fonctionnement de **Radix Sort** :
+
+1.  **Tri des éléments chiffre par chiffre** :\
+    L'idée principale derrière **Radix Sort** est de trier les éléments en fonction de chaque chiffre individuel. Par exemple, pour des entiers, on commence par trier les éléments en fonction du chiffre des unités, puis par le chiffre des dizaines, des centaines, etc. Ce processus est itéré pour chaque position de chiffre jusqu'à ce que tous les chiffres aient été triés.
+
+2.  **Méthode de tri stable** :\
+    **Radix Sort** utilise des algorithmes de tri stables à chaque étape. Cela signifie que, pour un même chiffre, les éléments qui ont des valeurs égales restent dans le même ordre qu'auparavant. Un exemple classique d'un tel algorithme de tri stable est le **Counting Sort**.
+
+3.  **Radix Sort** :\
+    Le terme "base" fait référence à la base du système numérique utilisé pour représenter les entiers (par exemple, base 10 pour les nombres décimaux, base 2 pour les nombres binaires). Le **Radix Sort** peut être utilisé avec différentes bases, mais la base 10 (décimale) est la plus courante pour les entiers.
+
+### Complexité de **Radix Sort** :
+
+La complexité du **Radix Sort** dépend principalement de deux facteurs :
+
+-   **n** : le nombre d'éléments à trier.
+-   **d** : le nombre de chiffres dans le plus grand élément.
+
+La complexité de l'algorithme peut être décrite comme suit :
+
+-   Le **Radix Sort** nécessite de faire un tri stable en utilisant **Counting Sort** pour chaque chiffre.
+-   Le **Counting Sort** a une complexité de **O(n + k)**, où **n** est le nombre d'éléments et **k** est la taille de la plage des chiffres (par exemple, 10 pour les nombres décimaux, 256 pour les caractères ASCII, etc.).
+-   Puisque nous devons effectuer **d** itérations, où **d** est le nombre de chiffres du plus grand nombre (logarithmique par rapport à la valeur de l'élément maximum), la complexité globale du **Radix Sort** devient :
+
+$$
+O(d \times (n + k))
+$$
+
+Dans le meilleur des cas, si **k** est suffisamment petit (par exemple, pour les entiers représentés en base 10), cette complexité peut être réduite à **O(n)**, c'est-à-dire linéaire par rapport au nombre d'éléments.
+
+
+## Limites avec R et C++
+
+### Exemple
+
+Comme précédement, on fait le test sur un exemple :
+
+```{r}
+n <- 10000
+v <- sample(n)
+
+one.simu.time(n, v, func = "radix_sort")
+one.simu.time(n, v, func = "radix_sort_Rcpp")
+```
+
+
+### Simulations avec répétitions
+
+On reproduit ces comparaisons de manière plus robuste:
+
+```{r}
+nbSimus <- 10
+
+time1 <- rep(0, nbSimus); time2 <- rep(0, nbSimus);
+v <- sample(n)
+
+
+for(i in 1:nbSimus){time1[i] <- one.simu.time(n, v, func = "radix_sort")}
+for(i in 1:nbSimus){time2[i] <- one.simu.time(n, v, func = "radix_sort_Rcpp")}
+
+mean(time1)/mean(time2) 
+
+```
+
+On affiche la courbe de la moyenne des temps en R et en C++ avec n variant de 100 à 50100.
+
+```{r }
+# Fonction pour exécuter les benchmarks et calculer la moyenne
+benchmark_radix <- function(n, nbSimus = 50) {
+  time1 <- rep(0, nbSimus)
+  time2 <- rep(0, nbSimus)
+  v <- sample(n)
+  for(i in 1:nbSimus) {
+    time1[i] <- one.simu.time(n, v, func = "radix_sort")
+  }
+  for(i in 1:nbSimus) {
+    time2[i] <- one.simu.time(n, v, func = "radix_sort_Rcpp")
+  }
+  
+  return(c(mean(time1), mean(time2)))
+}
+
+n_values <- seq(1000, 50100, by = 5000)
+
+results <- t(sapply(n_values, function(n) benchmark_radix(n)))
+
+df_results <- data.frame(
+  n = n_values,
+  radix_R = results[, 1],  # Moyenne des temps pour Radix Sort (R)
+  radix_Rcpp = results[, 2]  # Moyenne des temps pour Radix Sort (Rcpp)
+)
+
+# Tracer le graphique pour les temps d'exécution de Radix Sort (R vs Rcpp)
+p <- ggplot(df_results, aes(x = n)) +
+  geom_line(aes(y = radix_R, color = "Radix Sort (R)"), size = 1) +
+  geom_line(aes(y = radix_Rcpp, color = "Radix Sort (Rcpp)"), size = 1) +
+  labs(title = "Temps d'exécution de Radix Sort : R vs Rcpp",
+       x = "Taille des données (n)",
+       y = "Temps moyen (secondes)") +
+  scale_color_manual(values = c("red", "blue")) +
+  theme_minimal()
+
+# Afficher le graphique des temps d'exécution
+print(p)
+
+```
+
+
+**Conclusion**
+
+
+Pour un vecteur de taille `n = 10000`, l'algorithme **Radix Sort** en **C++** est environ **27.4717 fois plus rapide** que sa version en **R**. Cette différence de performance démontre l'efficacité de l'optimisation en C++ par rapport à l'exécution en R pour des algorithmes de tri comme le Radix Sort.
+
+En visualisant cette différence à travers un graphique, nous voyons clairement l'écart de performance entre les deux implémentations. Le graphique illustre le gain significatif que l'optimisation en C++ peut apporter, surtout pour des jeux de données plus grands.
+
+Comme précédement, avec les tris naïfs, on remarque une grande différence d'efficacité entre R et C++. 
+
+
+## Comparaisons Radix Sort et Merge Sort
+
+Cette section a pour objectif de comparer les performances de l'algorithme **Radix Sort** dans ses deux versions : l'implémentation **naïve** (en R) et l'implémentation **optimisée** (en C++). Nous allons analyser ces performances en affichant à la fois des **violin plots** et des **courbes des moyennes de temps d'exécution**. Ces graphiques nous permettront de visualiser et de comparer l'efficacité des deux algorithmes.
+
+### Objectif de la comparaison
+
+L'objectif principal de cette comparaison est de déterminer le moment où l'algorithme optimisé en C++ devient plus performant que la version naïve en R. Plus précisément, nous cherchons à identifier **le point de croisement des courbes** des temps d'exécution, c'est-à-dire le moment où la version C++ surpasse la version R en termes de rapidité.
+
+
+### Première comparaison
+
+Dans un premier temps, nous générons différents jeux de données pour évaluer les performances des algorithmes dans divers contextes. Ces jeux de données incluent des vecteurs **aléatoires**, **inversés**, **triés** et **presque triés** (avec 90% des éléments déjà triés). Nous choisissons un paramètre fixe \( k = 3 \), tandis que la taille du vecteur \( n \) varie entre 100 et 50 100. Cette variation de la taille des données nous permettra d'analyser comment chaque algorithme se comporte en fonction de l'ordre et de la taille des éléments à trier.
+
+
+```{r}
+
+vector_n <- seq(100, 50100, by = 5000)
+k <- 3
+
+datasets <- c("random", "sorted", "reverse_sorted", "sorted_90")
+
+generate_values <- function(n, k) {
+  min_value <- 1
+  max_value <- 10^k - 1
+  return(sample(min_value:max_value, n, replace = TRUE))
+}
+
+generate_dataset <- function(n, type, k) {
+  if (type == "random") {
+    return(generate_values(n, k))
+  } else if (type == "sorted") {
+    return(sort(generate_values(n, k)))
+  } else if (type == "reverse_sorted") {
+    return(sort(generate_values(n, k), decreasing = TRUE))
+  } else if (type == "sorted_90") {
+    sorted_part <- sort(generate_values(0.9 * n, k))
+    random_part <- generate_values(0.1 * n, k)
+    return(c(sorted_part, random_part))
+  }
+}
+```
+
+
+
+```{r}
+one.simu_rcpp <- function(vec, func = "merge_sort_Rcpp") {
+  if (func == "merge_sort_Rcpp") {
+    t <- system.time(merge_sort_Rcpp(vec))[[1]]
+  }
+  if (func == "radix_sort_Rcpp") {
+    t <- system.time(radix_sort_Rcpp(vec))[[1]]
+  }
+  
+  return(t)
+}
+```
+
+```{r}
+nbSimus <- length(vector_n)
+
+results_list <- list()
+
+for (dataset in datasets) {
+  time1 <- numeric(nbSimus)
+  time2 <- numeric(nbSimus)
+  
+  for (i in 1:nbSimus) {
+    data <- generate_dataset(vector_n[i], dataset, k)  # Générer les données avant l'appel de one.simu_rcpp
+    
+    time1[i] <- median(replicate(10, one.simu_rcpp(data, func = "merge_sort_Rcpp")))
+    time2[i] <- median(replicate(10, one.simu_rcpp(data, func = "radix_sort_Rcpp")))
+  }
+  
+  results_list[[dataset]] <- data.frame(
+    n = vector_n,
+    merge_Rcpp = time1,
+    radix_Rcpp = time2
+  )
+}
+
+```
+
+```{r}
+df_long_list <- lapply(names(results_list), function(dataset) {
+  df <- results_list[[dataset]]
+  df$dataset <- dataset
+  pivot_longer(df, cols = -c(n, dataset), names_to = "algo", values_to = "temps")
+})
+```
+
+
+```{r}
+# Afficher chaque graphique dans une fenêtre séparée
+for (df_long in df_long_list) {
+  dataset_name <- unique(df_long$dataset)
+  
+  # Plot avec "violin plot"
+  print(
+    ggplot(df_long, aes(x = algo, y = temps, fill = algo)) +
+      geom_violin(alpha = 0.7) +  # Utilisation du violin plot
+      labs(title = paste("Comparaison Rcpp -", dataset_name),
+           x = "Algorithme de Tri",
+           y = "Temps (s)") +
+      theme_minimal() +
+      theme(legend.position = "bottom")
+  )
+}
+
+```
+
+
+```{r}
+# Filtrer les données pour les données aléatoires
+df_random <- df_long_list[[1]] %>% filter(dataset == "random")
+
+# Afficher le graphique pour les données aléatoires
+ggplot(df_random, aes(x = n, y = temps, color = algo)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Comparaison Rcpp - Données Aléatoires",
+       x = "Taille des données",
+       y = "Temps (s)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+```
+
+
+```{r}
+# Filtrer les données pour les données triées
+df_sorted <- df_long_list[[2]] %>% filter(dataset == "sorted")
+
+# Afficher le graphique pour les données triées
+ggplot(df_sorted, aes(x = n, y = temps, color = algo)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Comparaison Rcpp - Données Triées",
+       x = "Taille des données",
+       y = "Temps (s)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+```{r}
+# Filtrer les données pour les données triées inversées
+df_reverse_sorted <- df_long_list[[3]] %>% filter(dataset == "reverse_sorted")
+
+# Afficher le graphique pour les données triées inversées
+ggplot(df_reverse_sorted, aes(x = n, y = temps, color = algo)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Comparaison Rcpp - Données Triées Inversées",
+       x = "Taille des données",
+       y = "Temps (s)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+```{r}
+# Filtrer les données pour les données partiellement triées (90%)
+df_sorted_90 <- df_long_list[[4]] %>% filter(dataset == "sorted_90")
+
+# Afficher le graphique pour les données partiellement triées
+ggplot(df_sorted_90, aes(x = n, y = temps, color = algo)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Comparaison Rcpp - Données Partiellement Triées (90%)",
+       x = "Taille des données",
+       y = "Temps (s)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+```
+
+
+**Conclusion**
+
+Les résultats montrent que, pour un \( k \) fixe et \( n \) variable, **Radix Sort** s'avère être le plus performant. Cependant, les courbes des temps d'exécution des deux algorithmes ne se croisent pas dans ce scénario. Cela nous amène à adopter une nouvelle approche, en tenant compte des complexités théoriques des algorithmes.
+
+En effet, le Radix Sort a une complexité de \( O(n \cdot k) \), tandis que le Merge Sort présente une complexité de \( O(n \log n) \). Selon cette analyse théorique, les courbes des temps d'exécution devraient se croiser lorsque \( k = \log n \). 
+
+Dans cette seconde approche, nous conservons les quatre jeux de données précédemment utilisés (aléatoire, inversé, trié et presque trié) et fixons \( x = 1000 \), avec \( k \) variant entre 1 et 9. Cette nouvelle configuration permettra de tester la validité de la relation théorique et d'observer à quel moment les performances des deux algorithmes se rejoignent.
+
+
+## Seconde Approche k = 1:9,  n = 1000
+
+```{r}
+n <- 1000
+k_values <- 1:9
+
+# Simulation pour chaque jeu de données
+results_list <- list()
+
+```
+
+
+```{r}
+for (dataset in datasets) {
+  time1 <- numeric(length(k_values))
+  time2 <- numeric(length(k_values))
+  
+  for (i in 1:length(k_values)) {
+    k <- k_values[i]
+    data <- generate_dataset(n, dataset, k)
+    
+    time1[i] <- median(replicate(50, one.simu_rcpp(data, func = "merge_sort_Rcpp")))
+    time2[i] <- median(replicate(50, one.simu_rcpp(data, func = "radix_sort_Rcpp")))
+  }
+  
+  results_list[[dataset]] <- data.frame(
+    k = k_values,
+    merge_Rcpp = time1,
+    radix_Rcpp = time2
+  )
+}
+
+```
+
+```{r}
+
+df_long_list <- lapply(names(results_list), function(dataset) {
+  df <- results_list[[dataset]]
+  df$dataset <- dataset
+  pivot_longer(df, cols = -c(k, dataset), names_to = "algo", values_to = "temps")
+})
+
+for (df_long in df_long_list) {
+  dataset_name <- unique(df_long$dataset)
+  
+  # Plot
+  print(
+    ggplot(df_long, aes(x = k, y = temps, color = algo)) +
+      geom_line(linewidth = 1) +
+      labs(title = paste("Comparaison Rcpp -", dataset_name),
+           x = "Nombre de chiffres (k)",
+           y = "Temps (s)") +
+      theme_minimal() +
+      theme(legend.position = "bottom")
+  )
+}
+
+```
+
+
+
+**Conclusion**
+
+Dans cette seconde approche, nous avons choisi \( n = 1000 \), ce qui, théoriquement, devrait faire croiser les courbes des deux algorithmes lorsque \( k = 6 \). Cependant, les résultats montrent que les courbes se croisent plusieurs fois, tant avant qu'après \( k = 6 \).
+
+Cela suggère que la relation entre \( n \) et \( k \) est plus complexe que prévu. En conséquence, cette seconde approche se révèle plus concluante, car elle permet de constater que les courbes se croisent à des valeurs spécifiques de \( n \) et \( k \), mais pas de manière aussi simple que la théorie le suggère.
+
+Pour que les courbes de **Merge Sort** et **Radix Sort** se croisent, il semble nécessaire que la taille des données soit relativement petite, inférieure à 2 500. De plus, plus \( n \) est grand, plus \( k \) doit également être élevé pour que les deux algorithmes aient des performances comparables.
+
+
+
+## Evaluation de la complexité
+
+
+```{r}
+one.simu.time.multi <- function(n, func, d = 1, reps = 100) {
+  total_time <- system.time({
+    for (i in 1:reps) {
+      v <- sample(0:(10^d - 1), n, replace = TRUE)
+      do.call(func, list(v))
+    }
+  })["elapsed"]
+  total_time / reps
+}
+benchmark_sorting <- function(func_name, n_values, nbRep = 10, d = 1, reps_per_sim = 100) {
+  results <- sapply(n_values, function(n) {
+    times <- replicate(nbRep, {
+      one.simu.time.multi(n, func = func_name, d = d, reps = reps_per_sim)
+    })
+    c(mean_time = mean(times), sd_time = sd(times))
+  })
+
+  data.frame(n = n_values, mean_time = results["mean_time", ], sd_time = results["sd_time", ])
+}
+# Paramètres communs
+nbRep <- 10
+reps_per_sim <- 100
+d <- 1
+vector_n <- seq(5000, 500000, by = 25000)
+
+# Benchmarks
+res_merge <- benchmark_sorting("merge_sort_Rcpp", vector_n, nbRep, d, reps_per_sim)
+res_radix <- benchmark_sorting("radix_sort_Rcpp", vector_n, nbRep, d, reps_per_sim)
+model_merge <- lm(log(res_merge$mean_time) ~ log(res_merge$n))
+slope_merge <- coef(model_merge)[2]
+
+model_radix <- lm(log(res_radix$mean_time) ~ log(res_radix$n))
+slope_radix <- coef(model_radix)[2]
+
+cat("Pente Merge Sort :", round(slope_merge, 4), "\n")
+cat("Pente Radix Sort :", round(slope_radix, 4), "\n")
+
+```
+
+On compare maintenant les deux algorithmes sur le même graphe :
+
+```{r}
+
+# Fusion des résultats avec un identifiant d'algorithme
+res_merge$algo <- "Merge Sort"
+res_radix$algo <- "Radix Sort"
+res_all <- rbind(res_merge, res_radix)
+
+# Graphique comparatif
+ggplot(res_all, aes(x = n, y = mean_time, color = algo)) +
+  geom_point(size = 2) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Comparaison des Temps d'Exécution (log-log)",
+       subtitle = paste("Pentes : Merge =", round(slope_merge, 3), 
+                        "| Radix =", round(slope_radix, 3)),
+       x = "Taille des données (n)",
+       y = "Temps moyen (s)",
+       color = "Algorithme") +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  theme_minimal()
+
+```
+
+
+
+
+**Conclusion**
+
+***Analyse des Pentes***
+
+Les pentes des courbes de régression pour les deux algorithmes offrent un aperçu intéressant de leur complexité respective. 
+
+- **Tri par base (Radix Sort)** : La pente de \(2 \times 10^{-6}\) suggère que l'algorithme a une complexité plus proche de la linéaire, car le temps d'exécution augmente de manière relativement constante avec la taille de l'entrée.
+  
+- **Tri fusion (Merge Sort)** : La pente de \(4 \times 10^{-7}\) indique que l'algorithme a une complexité qui croît plus lentement. Cela est cohérent avec une complexité de type \(O(n \log n)\), où le terme logarithmique ralentit la croissance du temps d'exécution par rapport à une complexité purement linéaire.
+
+***Distinction entre Complexité Linéaire et Log-Linéaire***
+
+La question de savoir si l'on peut distinguer la complexité linéaire de la complexité log-linéaire se répond positivement à partir des données et des pentes des courbes de régression.
+
+- **Tri par base** : La pente plus élevée (\(2 \times 10^{-6}\)) indique que le temps d'exécution augmente plus rapidement avec la taille de l'entrée, ce qui est typique d'une complexité linéaire.
+  
+- **Tri fusion** : La pente plus faible (\(4 \times 10^{-7}\)) suggère une croissance plus lente du temps d'exécution, ce qui est caractéristique d'une complexité \(O(n \log n)\).
+
+***Observation des Courbes***
+
+- La courbe du **tri par base** est plus régulière et montre une augmentation constante du temps d'exécution, ce qui est typique d'une complexité linéaire.
+  
+- La courbe du **tri fusion** présente des fluctuations et une croissance non linéaire, caractéristiques de la complexité \(O(n \log n)\).
+
+
+Les différences observées dans les pentes et les comportements des courbes permettent de distinguer clairement la complexité linéaire de la complexité log-linéaire pour les algorithmes étudiés. Le tri par base présente une complexité linéaire, tandis que le tri fusion suit une complexité log-linéaire, ce qui confirme la théorie et les observations expérimentales.
+
+# Conclusion du Projet
+
+Dans ce projet, nous avons exploré et comparé les performances de différents algorithmes de tri, en mettant un accent particulier sur le **Radix Sort** et le **Merge Sort**. Nous avons analysé leurs complexités théoriques et leurs comportements pratiques à travers divers jeux de données et tailles d'entrée.
+
+## Résultats Clés
+
+### Complexité Théorique vs. Pratique
+
+- **Radix Sort** : Ce dernier a montré une complexité proche de la linéaire, ce qui le rend particulièrement efficace pour des jeux de données de taille modérée ou lorsque les données suivent certaines distributions. 
+- **Merge Sort** : Avec sa complexité \(O(n \log n)\), cet algorithme s'est avéré plus performant pour des ensembles de données de grande taille ou dans des situations générales.
+
+### Comparaison des Implémentations
+
+- **Optimisation en C++ (via Rcpp)** : Les implémentations en C++ ont été significativement plus rapides que celles en R. Cela souligne l'importance de l'optimisation des performances dans les tâches computationnelles intensives.
+- **Radix Sort en C++** : En C++, le Radix Sort a été environ **27 fois plus rapide** que sa version en R, démontrant l'efficacité de l'optimisation en C++.
+
+
+## Croisement des Courbes avec \( k = \log(n) \)
+
+Dans notre analyse, nous avons observé que les courbes des temps d'exécution du Radix Sort et du Merge Sort se croisent, en théorie, lorsque \( k = \log(n) \). Cependant, en pratique, ce n'est pas forcément le cas. Nous avons effectué des tests sur différents jeux de données et il n'y avait pas de valeur précise de \( k \) qui ressortait.
+
+
+### Analyse des Pentes et des Courbes
+
+- Les **pentes des courbes de régression** ont permis de distinguer clairement la complexité linéaire de la complexité log-linéaire.
+  - **Radix Sort** a montré une pente plus élevée, ce qui indique une complexité proche de la linéaire.
+  - **Merge Sort** a présenté une pente plus faible, typique d'une complexité \(O(n \log n)\).
+
+## Perspectives
+
+### Étude de Cas Supplémentaires
+
+- Analyser les performances des algorithmes sur des **jeux de données réels** et plus variés afin de mieux comprendre leur comportement dans des contextes pratiques.
+
+### Développement de Nouveaux Algorithmes
+
+- Investiguer de nouveaux algorithmes de tri qui pourraient offrir des performances supérieures dans des cas spécifiques, en combinant les avantages des approches comparatives et non comparatives.
+
+### Ajout d'Algorithmes en \(O(n \log n)\), tels que le Quick Sort
+
+- Ajouter le **Quick Sort**, un algorithme de tri basé sur le principe du pivotage, qui est souvent plus rapide que le Merge Sort en pratique grâce à ses faibles constantes dans des cas moyens. Comparer sa performance avec les autres algorithmes existants.
+
+### Ajout du MSD (Most Significant Digit) Radix Sort
+
+- Étudier l'**ajout de l'algorithme MSD Radix Sort**, qui, contrairement à l'algorithme LSD (Least Significant Digit), trie les données à partir du chiffre le plus significatif. Cela pourrait améliorer les performances dans certains scénarios de données spécifiques.
+
+
+## Conclusion Générale
+
+Ce projet a non seulement permis de comparer et d'analyser les performances de différents algorithmes de tri, mais il a également mis en lumière l'importance de l'optimisation et de l'adaptation des algorithmes aux besoins spécifiques des applications réelles. Les perspectives ouvertes par cette étude offrent de nombreuses opportunités pour des recherches et des développements futurs dans le domaine de l'algorithmique et de la science des données.
+
+
